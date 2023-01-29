@@ -7,13 +7,12 @@ openai.api_key = OPENAI_API_KEY
 
 def generate_text(prompt, temperature=0.9, max_tokens=5):
     response = openai.Completion.create(
-        engine="davinci",
+        model="text-davinci-003",
         prompt=prompt,
         temperature=temperature,
         max_tokens=max_tokens,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
-        stop=["\n"]
     )
     return response.choices[0].text

@@ -8,6 +8,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
+from src.models import PromptPayload
+from src.openai_libs.prompt_builder import build_prompt
 from src.openai_libs.text_completion import generate_text
 
 sys.path.append("src")
@@ -36,17 +38,16 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return {"Status": "Active"}
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: str = None):
-    return {"item_id": item_id, "q": q}
-
-
-@app.get("/prompt/{prompt}")
-def read_item(prompt: str, temperature: float = 0.9, max_tokens: int = 5):
-    return generate_text(prompt, temperature, max_tokens)
+@app.post("/prompt/")
+async def generate_text_endpoint(payload: PromptPayload, request: Request):
+    prompt = payload.prompt
+    temperature = payload.temperature
+    max_tokens = payload.max_tokens
+    final_prompt = build_prompt(prompt, payload.genre)
+    return generate_text(final_prompt, temperature, max_tokens)
 
 
 if __name__ == "__main__":

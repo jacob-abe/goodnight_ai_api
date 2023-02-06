@@ -7,11 +7,11 @@ Be kind, building on an unfamiliar stack and this might not be my greatest work 
 ### Text+ Image gen flow
 * Genre and settings comes from client
 * Check if client can generate the story(Rate limit)
-* Store the new story request in user's mongo collection and mark status as pending text generation
+* Store the new story request in user's DB collection and mark status as pending text generation
 * Send back story ID back to client
 
 ### Story generation cloud function
-* Fetch pending story requests from mongo
+* Fetch pending story requests from db
 * Generate prompt, send to open AI to generate story
 * Summarise the story for image generation
 * Store the summary and text to the story under user, mark status as image generation pending
@@ -20,12 +20,12 @@ Be kind, building on an unfamiliar stack and this might not be my greatest work 
 * Fetch stories with status pending image generation
 * Make call to stable diffussion with the summary
 * Get back tracking ID and ETA
-* Store image tracking ID, eta, image generation timestamp, pending state into user's mongo.
+* Store image tracking ID, eta, image generation timestamp, pending state into user's db.
 
 ### Image fetching cloud function, runs every 5 secs
 * Check pending stories with an image generation timestamp and status pending image generation. 
 * Once ETA is past timestamp, query the fetched image url from Stablediffussion with the tracking ID,
-* If the image is ready, store image url in the mongo story, set state as ready
+* If the image is ready, store image url in the db story, set state as ready
 * If it is not, do nothing
 
 ### Story fetch flow:
@@ -36,5 +36,5 @@ Be kind, building on an unfamiliar stack and this might not be my greatest work 
 ## Rate limiting the API
 
 * Planning to ask the user to signup with Google Auth, seems like the least barrier to entry
-* So google auth will be the AuthN and users once registered, will get saved onto a Mongo collection
+* So google auth will be the AuthN and users once registered, will get saved onto a db collection
 * Each user gets one story a day, monthly subscription. Each new user signup gets 1 free story in lifetime

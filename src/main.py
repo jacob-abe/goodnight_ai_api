@@ -12,7 +12,8 @@ from starlette.middleware.cors import CORSMiddleware
 
 from src.functions.image_generation import run_image_generation_service
 from src.functions.story_generation import run_story_generation_service
-from src.models import PromptPayload, UserPayload, NewStoryPayload, Story, StoryStatus
+from src.models import PromptPayload, UserPayload, NewStoryPayload, Story, StoryStatus, UserDbObject, \
+    UserSubscriptionObject
 from src.external_libs.prompt_builder import build_prompt
 from src.external_libs.text_completion import generate_text
 
@@ -74,18 +75,24 @@ async def new_user(payload: UserPayload, request: Request):
     # Check if the user already exists in the Firestore collection
     user_ref = db.collection(u'users').document(payload.id_token)
     user = user_ref.get()
-    utc_timestamp = datetime.datetime.utcnow().timestamp()
+
     if not user.exists:
         # If the user does not exist, store the information in the Firestore collection
-        user_ref.set({
-            u'name': payload.name,
-            u'email': payload.email,
-            u'profile_picture': payload.profile_picture,
-            u'access_token': payload.access_token,
-            u'device_token': payload.device_token,
-            u'id_token': payload.id_token,
-            u'last_story_generated_timestamp': utc_timestamp
-        })
+        user_object = UserDbObject(
+            name=payload.name,
+            email=payload.email,
+            profile_picture=payload.profile_picture,
+            access_token=payload.access_token,
+            device_token=payload.device_token,
+            id_token=payload.id_token,
+            last_story_generated_timestamp=0,
+            subscription=UserSubscriptionObject(
+                start_date_timestamp=0,
+                end_date_timestamp=0,
+                finished_free_story=False
+            )
+        )
+        user_ref.set(user_object.dict())
         user_id = user_ref.id
         user_ref.update({
             u'user_id': user_id
@@ -97,21 +104,39 @@ async def new_user(payload: UserPayload, request: Request):
 
 @app.post("/new_story/")
 async def new_story(payload: NewStoryPayload, request: Request):
+    # Check if user exists
+    user_ref = db.collection(u'users').document(payload.user_id)
+    user = user_ref.get().to_dict()
+    utc_timestamp = datetime.datetime.utcnow().timestamp()
+    if user is None:
+        raise HTTPException(status_code=400, detail="User not found")
+
+    # Check if user subscription valid
+    subscription = user["subscription"]
+    if subscription["end_date_timestamp"] < utc_timestamp and subscription["finished_free_story"]:
+        raise HTTPException(status_code=403, detail="Free tier ran out")
+
+    # Check if last story generated was less than a day ago
+    time_since_last_story = utc_timestamp - user["last_story_generated_timestamp"]
+    if time_since_last_story < 24 * 60 * 60:
+        raise HTTPException(status_code=429, detail="Too many story requests in a day")
+
+    # Generate prompt and store in db
     story_ref = db.collection(u'users').document(payload.user_id).collection(u'stories').document()
     story_id = story_ref.id
-    utc_timestamp = datetime.datetime.utcnow().timestamp()
     story = Story(
         prompt=build_prompt(payload.genre, payload.main_character_name),
         status=StoryStatus.PendingTextGeneration,
         timestamp=utc_timestamp
     )
-    user_ref = db.collection(u'users').document(payload.user_id)
-    user = user_ref.get().to_dict()
-    if user is None:
-        raise HTTPException(status_code=400, detail="User not found")
     if "stories" not in user:
         user["stories"] = []
     user["stories"].append(story.dict())
+
+    # Update subscription if applicable
+    if subscription["end_date_timestamp"] < utc_timestamp and not subscription["finished_free_story"]:
+        user["subscription"]["finished_free_story"] = True
+    user["last_story_generated_timestamp"] = datetime.datetime.utcnow().timestamp()
     user_ref.set(user)
     return {"message": "Story request created successfully", "story_id": story_id}
 

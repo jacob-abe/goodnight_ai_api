@@ -18,6 +18,24 @@ class UserPayload(BaseModel):
     device_token: str
 
 
+class UserSubscriptionObject(BaseModel):
+    start_date_timestamp: int = 0
+    end_date_timestamp: int = 0
+    finished_free_story: bool
+
+
+class UserDbObject(BaseModel):
+    name: str
+    email: str
+    profile_picture: str
+    access_token: str
+    device_token: str
+    id_token: str
+    user_id: str
+    last_story_generated_timestamp: int
+    subscription: UserSubscriptionObject
+
+
 class StoryStatus(str, Enum):
     PendingTextGeneration = 'PendingTextGeneration'
     PendingImageGeneration = 'PendingImageGeneration'

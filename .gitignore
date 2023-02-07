@@ -3,3 +3,6 @@ __pycache__
 
 # Env vars
 .env
+
+# Secrets
+/src/goodnight-ai-firebase-service-account-key.json

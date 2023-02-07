@@ -7,12 +7,12 @@ Be kind, building on an unfamiliar stack and this might not be my greatest work 
 ### Text+ Image gen flow
 * Genre and settings comes from client
 * Check if client can generate the story(Rate limit)
-* Store the new story request in user's DB collection and mark status as pending text generation
+* Generate prompt, Store the new story request in user's DB collection and mark status as pending text generation
 * Send back story ID back to client
 
 ### Story generation cloud function
 * Fetch pending story requests from db
-* Generate prompt, send to open AI to generate story
+* Get prompt from story object, send to open AI to generate story
 * Summarise the story for image generation
 * Store the summary and text to the story under user, mark status as image generation pending
 

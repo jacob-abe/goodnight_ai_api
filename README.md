@@ -20,13 +20,7 @@ Be kind, building on an unfamiliar stack and this might not be my greatest work 
 * Fetch stories with status pending image generation
 * Make call to stable diffussion with the summary
 * Get back tracking ID and ETA
-* Store image tracking ID, eta, image generation timestamp, pending state into user's db.
-
-### Image fetching cloud function, runs every 5 secs
-* Check pending stories with an image generation timestamp and status pending image generation. 
-* Once ETA is past timestamp, query the fetched image url from Stablediffussion with the tracking ID,
-* If the image is ready, store image url in the db story, set state as ready
-* If it is not, do nothing
+* Store image url in the db story, set state as ready
 
 ### Cleanup cloud function (To keep document sizes down)
 * Delete any stories from over 7 days old for every user

@@ -28,6 +28,9 @@ Be kind, building on an unfamiliar stack and this might not be my greatest work 
 * If the image is ready, store image url in the db story, set state as ready
 * If it is not, do nothing
 
+### Cleanup cloud function (To keep document sizes down)
+* Delete any stories from over 7 days old for every user
+
 ### Story fetch flow:
 * From app, query the API every 10 secs, if the cached story ID is a success, get back a boolean with .
 * If it is, fetch the story

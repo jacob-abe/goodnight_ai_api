@@ -10,19 +10,19 @@ Be kind, building on an unfamiliar stack and this might not be my greatest work 
 * Generate prompt, Store the new story request in user's DB collection and mark status as pending text generation
 * Send back story ID back to client
 
-### Story generation cloud function
+### Story generation service runs every x secs
 * Fetch pending story requests from db
 * Get prompt from story object, send to open AI to generate story
 * Summarise the story for image generation
 * Store the summary and text to the story under user, mark status as image generation pending
 
-### Image generation cloud function, runs every 
+### Image generation service runs every x secs
 * Fetch stories with status pending image generation
 * Make call to stable diffussion with the summary
 * Get back tracking ID and ETA
 * Store image url in the db story, set state as ready
 
-### Cleanup cloud function (To keep document sizes down)
+### Cleanup service runs every x secs (To keep document sizes down)
 * Delete any stories from over 7 days old for every user
 
 ### Story fetch flow:

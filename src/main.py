@@ -18,7 +18,7 @@ from src.external_libs.prompt_builder import build_prompt
 from src.external_libs.text_completion import generate_text
 
 import firebase_admin
-from firebase_admin import firestore, credentials
+from firebase_admin import firestore, credentials, auth
 
 sys.path.append("src")
 
@@ -43,6 +43,19 @@ app.add_middleware(
 )
 
 db = None
+
+
+def get_auth_verified_user_id(request):
+    # Verify JWT token
+    authorization = request.headers.get("Authorization")
+    if not authorization:
+        raise HTTPException(status_code=400, detail="Authorization header missing")
+    id_token = authorization.split("Bearer ")[1]
+    try:
+        decoded_token = auth.verify_id_token(id_token)
+        return decoded_token["uid"]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Invalid JWT token")
 
 
 @app.on_event("startup")
@@ -72,6 +85,7 @@ async def generate_text_endpoint(payload: PromptPayload, request: Request):
 
 @app.post("/new_user/")
 async def new_user(payload: UserPayload, request: Request):
+    verified_user_id = get_auth_verified_user_id(request)
     # Check if the user already exists in the Firestore collection
     user_ref = db.collection(u'users').document(payload.id_token)
     user = user_ref.get()
@@ -84,7 +98,7 @@ async def new_user(payload: UserPayload, request: Request):
             profile_picture=payload.profile_picture,
             access_token=payload.access_token,
             device_token=payload.device_token,
-            id_token=payload.id_token,
+            user_id=verified_user_id,
             last_story_generated_timestamp=0,
             subscription=UserSubscriptionObject(
                 start_date_timestamp=0,
@@ -93,17 +107,16 @@ async def new_user(payload: UserPayload, request: Request):
             )
         )
         user_ref.set(user_object.dict())
-        user_id = user_ref.id
-        user_ref.update({
-            u'user_id': user_id
-        })
-        return {"message": "User information stored successfully", "user_id": user_id}, 201
+        return {"message": "User information stored successfully", "user_id": verified_user_id}, 201
     else:
         return "User already exists", 200
 
 
 @app.post("/new_story/")
 async def new_story(payload: NewStoryPayload, request: Request):
+    verified_user_id = get_auth_verified_user_id(request)
+    if verified_user_id != payload.user_id:
+        raise HTTPException(status_code=400, detail="user_id in payload does not match id in JWT token")
     # Check if user exists
     user_ref = db.collection(u'users').document(payload.user_id)
     user = user_ref.get().to_dict()

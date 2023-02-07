@@ -13,7 +13,6 @@ class UserPayload(BaseModel):
     name: str
     email: str
     profile_picture: str
-    id_token: str
     access_token: str
     device_token: str
 
@@ -30,7 +29,6 @@ class UserDbObject(BaseModel):
     profile_picture: str
     access_token: str
     device_token: str
-    id_token: str
     user_id: str
     last_story_generated_timestamp: int
     subscription: UserSubscriptionObject

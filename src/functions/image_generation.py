@@ -42,13 +42,16 @@ async def run_image_generation_service(firestore_db):
         for user in users:
             stories = user.get("stories")
             if stories:
-                for story in stories:
+                for index, story in enumerate(stories):
                     if story.get("status") == "PendingImageGeneration":
-                        story_ref = users_ref.document(user.id).collection("stories").document(story.id)
                         image_url = generate_image(story.get("prompt"))
-                        story_ref.update({
-                            "image_url": image_url,
-                            "status": StoryStatus.StoryReady
+                        user_ref = users_ref.document(user.id)
+                        story = story.copy()
+                        story["image_url"] = image_url
+                        story["status"] = StoryStatus.StoryReady
+                        stories[index] = story
+                        user_ref.update({
+                            "stories": stories
                         })
 
         await asyncio.sleep(IMAGE_GENERATION_FREQUENCY)

@@ -1,24 +1,25 @@
+import asyncio
+import datetime
 import sys
 import typing
 
+import firebase_admin
 import orjson
 import uvicorn
-import asyncio
-import datetime
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Header, Depends
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer
+from firebase_admin import auth, credentials, firestore
 from starlette.middleware.cors import CORSMiddleware
 
-from src.functions.image_generation import run_image_generation_service
-from src.functions.story_generation import run_story_generation_service
-from src.models import PromptPayload, UserPayload, NewStoryPayload, Story, StoryStatus, UserDbObject, \
-    UserSubscriptionObject
 from src.external_libs.prompt_builder import build_prompt
 from src.external_libs.text_completion import generate_text
-
-import firebase_admin
-from firebase_admin import firestore, credentials, auth
+from src.functions.image_generation import run_image_generation_service
+from src.functions.story_generation import run_story_generation_service
+from src.models import (NewStoryPayload, PromptPayload, Story, StoryStatus,
+                        UserDbObject, UserPayload,
+                        UserSubscriptionObject)
 
 sys.path.append("src")
 
@@ -43,16 +44,17 @@ app.add_middleware(
 )
 
 db = None
+security = HTTPBearer()
 
 
-def get_auth_verified_user_id(request):
+def get_auth_verified_user_id(authorization):
     # Verify JWT token
-    authorization = request.headers.get("Authorization")
     if not authorization:
-        raise HTTPException(status_code=400, detail="Authorization header missing")
+        raise HTTPException(
+            status_code=400, detail="Authorization header missing")
     id_token = authorization.split("Bearer ")[1]
     try:
-        decoded_token = auth.verify_id_token(id_token)
+        decoded_token = firebase_admin.auth.verify_id_token(id_token)
         return decoded_token["uid"]
     except Exception as e:
         raise HTTPException(status_code=400, detail="Invalid JWT token")
@@ -60,8 +62,10 @@ def get_auth_verified_user_id(request):
 
 @app.on_event("startup")
 async def setup():
+    global db
     # Initialize Firebase App
-    cred = credentials.Certificate("goodnight-ai-firebase-service-account-key.json")
+    cred = credentials.Certificate(
+        "goodnight-ai-firebase-service-account-key.json")
     firebase_admin.initialize_app(cred)
     # Get a reference to the Firestore database
     db = firestore.client()
@@ -83,11 +87,11 @@ async def generate_text_endpoint(payload: PromptPayload, request: Request):
     return generate_text(final_prompt, temperature, max_tokens)
 
 
-@app.post("/new_user/")
-async def new_user(payload: UserPayload, request: Request):
-    verified_user_id = get_auth_verified_user_id(request)
+@app.post("/user/")
+async def new_user(payload: UserPayload, authorization=Depends(security)):
+    verified_user_id = get_auth_verified_user_id(authorization.credentials)
     # Check if the user already exists in the Firestore collection
-    user_ref = db.collection(u'users').document(payload.id_token)
+    user_ref = db.collection(u'users').document(verified_user_id)
     user = user_ref.get()
 
     if not user.exists:
@@ -96,15 +100,14 @@ async def new_user(payload: UserPayload, request: Request):
             name=payload.name,
             email=payload.email,
             profile_picture=payload.profile_picture,
-            access_token=payload.access_token,
-            device_token=payload.device_token,
             user_id=verified_user_id,
             last_story_generated_timestamp=0,
             subscription=UserSubscriptionObject(
                 start_date_timestamp=0,
                 end_date_timestamp=0,
-                finished_free_story=False
-            )
+                finished_free_story=False,
+            ),
+            stories=[]
         )
         user_ref.set(user_object.dict())
         return {"message": "User information stored successfully", "user_id": verified_user_id}, 201
@@ -112,13 +115,26 @@ async def new_user(payload: UserPayload, request: Request):
         return "User already exists", 200
 
 
-@app.post("/new_story/")
-async def new_story(payload: NewStoryPayload, request: Request):
-    verified_user_id = get_auth_verified_user_id(request)
-    if verified_user_id != payload.user_id:
-        raise HTTPException(status_code=400, detail="user_id in payload does not match id in JWT token")
+@app.get("/user/")
+async def get_user(authorization=Depends(security)):
+    verified_user_id = get_auth_verified_user_id(authorization.credentials)
+    # Check if the user already exists in the Firestore collection
+    user_ref = db.collection(u'users').document(verified_user_id)
+    user = user_ref.get()
+
+    if not user.exists:
+        # If the user does not exist, store the information in the Firestore collection
+        raise HTTPException(
+            status_code=401, detail="User does not exist")
+    else:
+        return user.to_dict()
+
+
+@app.post("/story/")
+async def new_story(payload: NewStoryPayload, authorization=Depends(security)):
+    verified_user_id = get_auth_verified_user_id(authorization.credentials)
     # Check if user exists
-    user_ref = db.collection(u'users').document(payload.user_id)
+    user_ref = db.collection(u'users').document(verified_user_id)
     user = user_ref.get().to_dict()
     utc_timestamp = datetime.datetime.utcnow().timestamp()
     if user is None:
@@ -130,12 +146,15 @@ async def new_story(payload: NewStoryPayload, request: Request):
         raise HTTPException(status_code=403, detail="Free tier ran out")
 
     # Check if last story generated was less than a day ago
-    time_since_last_story = utc_timestamp - user["last_story_generated_timestamp"]
+    time_since_last_story = utc_timestamp - \
+                            user["last_story_generated_timestamp"]
     if time_since_last_story < 24 * 60 * 60:
-        raise HTTPException(status_code=429, detail="Too many story requests in a day")
+        raise HTTPException(
+            status_code=429, detail="Too many story requests in a day")
 
     # Generate prompt and store in db
-    story_ref = db.collection(u'users').document(payload.user_id).collection(u'stories').document()
+    story_ref = db.collection(u'users').document(
+        verified_user_id).collection(u'stories').document()
     story_id = story_ref.id
     story = Story(
         prompt=build_prompt(payload.genre, payload.main_character_name),

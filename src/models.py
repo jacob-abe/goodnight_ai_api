@@ -1,5 +1,7 @@
-from pydantic import BaseModel
 from enum import Enum
+
+from pydantic import BaseModel
+from pydantic.types import List
 
 
 class PromptPayload(BaseModel):
@@ -13,25 +15,12 @@ class UserPayload(BaseModel):
     name: str
     email: str
     profile_picture: str
-    access_token: str
-    device_token: str
 
 
 class UserSubscriptionObject(BaseModel):
     start_date_timestamp: int = 0
     end_date_timestamp: int = 0
     finished_free_story: bool
-
-
-class UserDbObject(BaseModel):
-    name: str
-    email: str
-    profile_picture: str
-    access_token: str
-    device_token: str
-    user_id: str
-    last_story_generated_timestamp: int
-    subscription: UserSubscriptionObject
 
 
 class StoryStatus(str, Enum):
@@ -51,6 +40,15 @@ class Story(BaseModel):
 
 
 class NewStoryPayload(BaseModel):
-    user_id: str
     genre: str
     main_character_name: str
+
+
+class UserDbObject(BaseModel):
+    name: str
+    email: str
+    profile_picture: str
+    user_id: str
+    last_story_generated_timestamp: int
+    subscription: UserSubscriptionObject
+    stories: List[Story]

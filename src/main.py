@@ -13,6 +13,7 @@ from fastapi.security import HTTPBearer
 from firebase_admin import auth, credentials, firestore
 from starlette.middleware.cors import CORSMiddleware
 
+from functions.image_queue_process import run_image_queue_process_service
 from src.external_libs.prompt_builder import build_prompt
 from src.external_libs.text_completion import generate_text
 from src.functions.image_generation import run_image_generation_service
@@ -71,6 +72,7 @@ async def setup():
     db = firestore.client()
     asyncio.create_task(run_story_generation_service(db))
     asyncio.create_task(run_image_generation_service(db))
+    asyncio.create_task(run_image_queue_process_service(db))
 
 
 @app.get("/")

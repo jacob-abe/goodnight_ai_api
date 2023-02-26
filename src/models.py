@@ -36,6 +36,8 @@ class Story(BaseModel):
     generated_summary: str = ''
     image_url: str = ''
     timestamp: int = 0
+    fetch_image_timestamp: int = 0
+    fetch_image_id: str = ''
     status: StoryStatus
 
 

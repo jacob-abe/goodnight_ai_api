@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import sys
 import typing
+from uuid import UUID
 
 import firebase_admin
 import orjson
@@ -14,13 +15,14 @@ from firebase_admin import auth, credentials, firestore
 from starlette.middleware.cors import CORSMiddleware
 
 from functions.image_queue_process import run_image_queue_process_service
+from functions.new_story_queue_process import run_story_request_service
 from src.external_libs.prompt_builder import build_prompt
 from src.external_libs.text_completion import generate_text
 from src.functions.image_generation import run_image_generation_service
 from src.functions.story_generation import run_story_generation_service
 from src.models import (NewStoryPayload, PromptPayload, Story, StoryStatus,
                         UserDbObject, UserPayload,
-                        UserSubscriptionObject)
+                        UserSubscriptionObject, ReadStoryPayload)
 
 sys.path.append("src")
 
@@ -70,6 +72,7 @@ async def setup():
     firebase_admin.initialize_app(cred)
     # Get a reference to the Firestore database
     db = firestore.client()
+    asyncio.create_task(run_story_request_service(db))
     asyncio.create_task(run_story_generation_service(db))
     asyncio.create_task(run_image_generation_service(db))
     asyncio.create_task(run_image_queue_process_service(db))
@@ -176,7 +179,9 @@ async def new_story(payload: NewStoryPayload, authorization=Depends(security)):
     story = Story(
         prompt=build_prompt(payload.genre, payload.main_character_name),
         status=StoryStatus.PendingTextGeneration,
-        timestamp=utc_timestamp
+        timestamp=utc_timestamp,
+        read_status='unread',
+        story_id=story_id
     )
     if "stories" not in user:
         user["stories"] = []
@@ -187,7 +192,59 @@ async def new_story(payload: NewStoryPayload, authorization=Depends(security)):
         user["subscription"]["finished_free_story"] = True
     user["last_story_generated_timestamp"] = datetime.datetime.utcnow().timestamp()
     user_ref.set(user)
-    return {"message": "Story request created successfully", "story_id": story_id}
+    return {"message": "Story request created successfully", "story_id": story_id}, 201
+
+
+@app.post("/read-story/")
+async def update_story_as_read(payload: ReadStoryPayload, authorization=Depends(security)):
+    verified_user_id = get_auth_verified_user_id(authorization.credentials)
+    # Check if user exists
+    user_ref = db.collection(u'users').document(verified_user_id)
+    user = user_ref.get().to_dict()
+    if user is None:
+        raise HTTPException(status_code=400, detail="User not found")
+
+    # Check if story exists
+    stories = user.get("stories")
+    if stories:
+        for index, story in enumerate(stories):
+            if story["story_id"] == payload.story_id:
+                stories[index]["read_status"] = "read"
+                user_ref.update({
+                    "stories": stories
+                })
+                return {"message": "Story updated successfully", "story_id": payload.story_id}
+    return {"message": "Story not found", "story_id": payload.story_id}
+
+
+@app.get("/story/")
+async def get_latest_story(authorization=Depends(security)):
+    verified_user_id = get_auth_verified_user_id(authorization.credentials)
+    # Check if user exists
+    user_ref = db.collection(u'users').document(verified_user_id)
+    user = user_ref.get().to_dict()
+    if user is None:
+        raise HTTPException(status_code=400, detail="User not found")
+    # Get latest story
+    stories = user.get("stories")
+    latest_story = None
+    if stories:
+        for index, story in enumerate(stories):
+            if story["status"] == StoryStatus.StoryReady:
+                latest_story = story
+    return latest_story, 200
+
+
+@app.get("/stories/")
+async def get_stories(authorization=Depends(security)):
+    verified_user_id = get_auth_verified_user_id(authorization.credentials)
+    # Check if user exists
+    user_ref = db.collection(u'users').document(verified_user_id)
+    user = user_ref.get().to_dict()
+    if user is None:
+        raise HTTPException(status_code=400, detail="User not found")
+    stories = user.get("stories")
+    return stories, 200
 
 
 if __name__ == "__main__":

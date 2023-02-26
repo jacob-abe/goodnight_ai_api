@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import time
 
 from src.config import STABLE_DIFFUSION_API_KEY
@@ -31,15 +32,16 @@ def generate_image(prompt):
         if response_body['output'] is not None:
             return response_body['output'][0]
         else:
-            if response_body["status"] is 'processing' and response_body["eta"] is not None:
+            if response_body["status"] == 'processing' and response_body["eta"] is not None:
                 return {
-                    "eta":float(response_body["eta"]) + time.time(),
-                    "fetch_id":response_body["id"]
+                    "eta": float(response_body["eta"]) + time.time(),
+                    "fetch_id": response_body["id"]
                 }
             else:
                 raise Exception("Unexpected result from api")
     else:
         raise Exception(f"Request failed with status code: {response.status_code}")
+
 
 async def run_image_generation_service(firestore_db):
     while True:
@@ -52,7 +54,7 @@ async def run_image_generation_service(firestore_db):
                 for index, story in enumerate(stories):
                     if story.get("status") == "PendingImageGeneration":
                         image_response = generate_image(story.get("prompt"))
-                        if image_response.get("eta") is not None:
+                        if "eta" in image_response:
                             story["fetch_image_timestamp"] = image_response.get("eta")
                             story["fetch_image_id"] = image_response.get("fetch_id")
                             story["status"] = StoryStatus.PendingImageFetch
@@ -68,6 +70,7 @@ async def run_image_generation_service(firestore_db):
                             story = story.copy()
                             story["image_url"] = image_url
                             story["status"] = StoryStatus.StoryReady
+                            story["timestamp"] = datetime.datetime.utcnow().timestamp()
                             stories[index] = story
                             user_ref.update({
                                 "stories": stories

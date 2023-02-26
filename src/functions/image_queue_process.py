@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 
 from src.config import STABLE_DIFFUSION_API_KEY
 from src.models import StoryStatus
@@ -36,6 +37,7 @@ async def run_image_queue_process_service(firestore_db):
                         story = story.copy()
                         story["image_url"] = image_url
                         story["status"] = StoryStatus.StoryReady
+                        story["timestamp"] = datetime.datetime.utcnow().timestamp()
                         stories[index] = story
                         user_ref.update({
                             "stories": stories

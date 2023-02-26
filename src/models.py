@@ -1,5 +1,5 @@
 from enum import Enum
-
+from uuid import UUID
 from pydantic import BaseModel
 from pydantic.types import List
 
@@ -52,11 +52,16 @@ class Story(BaseModel):
     fetch_image_timestamp: int = 0
     fetch_image_id: str = ''
     status: StoryStatus
+    read_status: str = 'unread'
+    story_id: int = 0
 
 
 class NewStoryPayload(BaseModel):
     genre: str
     main_character_name: str
+
+class ReadStoryPayload(BaseModel):
+    story_id: int = 0
 
 
 class UserDbObject(BaseModel):
@@ -64,7 +69,7 @@ class UserDbObject(BaseModel):
     email: str
     profile_picture: str
     user_id: str
-    last_story_generated_timestamp: int
+    last_story_generated_timestamp: float
     subscription: UserSubscriptionObject
     stories: List[Story]
     config: UserConfig

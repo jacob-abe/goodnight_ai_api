@@ -11,10 +11,23 @@ class PromptPayload(BaseModel):
     max_tokens: int = 5
 
 
+class UserAgeGroup(str, Enum):
+    Children = 'children'
+    Teens = 'teens'
+    Adults = 'adults'
+
+
+class UserConfig(BaseModel):
+    main_character_name: str = ''
+    age_group: UserAgeGroup = UserAgeGroup.Adults
+    genre: str = 'adventure'
+
+
 class UserPayload(BaseModel):
     name: str
     email: str
     profile_picture: str
+    user_config: UserConfig
 
 
 class UserSubscriptionObject(BaseModel):
@@ -54,3 +67,4 @@ class UserDbObject(BaseModel):
     last_story_generated_timestamp: int
     subscription: UserSubscriptionObject
     stories: List[Story]
+    config: UserConfig

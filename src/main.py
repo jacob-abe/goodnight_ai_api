@@ -109,12 +109,28 @@ async def new_user(payload: UserPayload, authorization=Depends(security)):
                 end_date_timestamp=0,
                 finished_free_story=False,
             ),
+            config=payload.user_config,
             stories=[]
         )
         user_ref.set(user_object.dict())
         return {"message": "User information stored successfully", "user_id": verified_user_id}, 201
     else:
         return "User already exists", 200
+
+
+@app.post("/user-config/")
+async def edit_user_config(payload: UserPayload, authorization=Depends(security)):
+    verified_user_id = get_auth_verified_user_id(authorization.credentials)
+    # Check if the user already exists in the Firestore collection
+    user_ref = db.collection(u'users').document(verified_user_id)
+    user = user_ref.get()
+
+    if not user.exists:
+        return "User already exists", 200
+    else:
+        # Update only the config
+        user_ref.update({"config": payload.user_config})
+        return {"message": "User information stored successfully", "user_id": verified_user_id}, 201
 
 
 @app.get("/user/")
@@ -148,8 +164,7 @@ async def new_story(payload: NewStoryPayload, authorization=Depends(security)):
         raise HTTPException(status_code=403, detail="Free tier ran out")
 
     # Check if last story generated was less than a day ago
-    time_since_last_story = utc_timestamp - \
-                            user["last_story_generated_timestamp"]
+    time_since_last_story = utc_timestamp - user["last_story_generated_timestamp"]
     if time_since_last_story < 24 * 60 * 60:
         raise HTTPException(
             status_code=429, detail="Too many story requests in a day")

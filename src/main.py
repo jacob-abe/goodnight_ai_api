@@ -1,8 +1,6 @@
 import asyncio
-import datetime
 import sys
 import typing
-from uuid import UUID
 
 import firebase_admin
 import orjson
@@ -16,11 +14,9 @@ from starlette.middleware.cors import CORSMiddleware
 
 from functions.image_queue_process import run_image_queue_process_service
 from functions.new_story_queue_process import run_story_request_service
-from src.external_libs.prompt_builder import build_prompt
-from src.external_libs.text_completion import generate_text
 from src.functions.image_generation import run_image_generation_service
 from src.functions.story_generation import run_story_generation_service
-from src.models import (NewStoryPayload, PromptPayload, Story, StoryStatus,
+from src.models import (StoryStatus,
                         UserDbObject, UserPayload,
                         UserSubscriptionObject, ReadStoryPayload)
 

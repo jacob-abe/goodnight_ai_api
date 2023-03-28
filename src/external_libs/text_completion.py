@@ -7,7 +7,7 @@ openai.api_key = OPENAI_API_KEY
 
 def generate_text(prompt, temperature=0.9, max_tokens=5):
     response = openai.Completion.create(
-        model="text-davinci-003",
+        model="gpt-3.5-turbo",
         prompt=prompt,
         temperature=temperature,
         max_tokens=max_tokens,

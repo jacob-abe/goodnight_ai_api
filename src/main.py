@@ -82,16 +82,6 @@ async def setup():
 def read_root():
     return {"Status": "Active"}
 
-
-@app.post("/prompt/")
-async def generate_text_endpoint(payload: PromptPayload, request: Request):
-    prompt = payload.prompt
-    temperature = payload.temperature
-    max_tokens = payload.max_tokens
-    final_prompt = build_prompt(payload.genre)
-    return generate_text(final_prompt, temperature, max_tokens)
-
-
 @app.post("/user/")
 async def new_user(payload: UserPayload, authorization=Depends(security)):
     verified_user_id = get_auth_verified_user_id(authorization.credentials)
@@ -111,6 +101,7 @@ async def new_user(payload: UserPayload, authorization=Depends(security)):
                 start_date_timestamp=0,
                 end_date_timestamp=0,
                 finished_free_story=False,
+                isActive = False
             ),
             config=payload.user_config,
             stories=[]
@@ -121,7 +112,7 @@ async def new_user(payload: UserPayload, authorization=Depends(security)):
         return "User already exists", 200
 
 
-@app.post("/user-config/")
+@app.post("/user/config/")
 async def edit_user_config(payload: UserPayload, authorization=Depends(security)):
     verified_user_id = get_auth_verified_user_id(authorization.credentials)
     # Check if the user already exists in the Firestore collection
@@ -129,12 +120,25 @@ async def edit_user_config(payload: UserPayload, authorization=Depends(security)
     user = user_ref.get()
 
     if not user.exists:
-        return "User already exists", 200
+        return "User does not exist", 400
     else:
         # Update only the config
         user_ref.update({"config": payload.user_config})
         return {"message": "User information stored successfully", "user_id": verified_user_id}, 201
 
+@app.post("/user/subscription")
+async def update_user_subscription(payload: UserSubscriptionObject, authorization=Depends(security)):
+    verified_user_id = get_auth_verified_user_id(authorization.credentials)
+    # Check if the user already exists in the Firestore collection
+    user_ref = db.collection(u'users').document(verified_user_id)
+    user = user_ref.get()
+
+    if not user.exists:
+        return "User does not exist", 400
+    else:
+        # Update only the subscription
+        user_ref.update({"subscription": payload})
+        return {"message": "User information stored successfully", "user_id": verified_user_id}, 201
 
 @app.get("/user/")
 async def get_user(authorization=Depends(security)):
@@ -149,50 +153,6 @@ async def get_user(authorization=Depends(security)):
             status_code=401, detail="User does not exist")
     else:
         return user.to_dict()
-
-
-@app.post("/story/")
-async def new_story(payload: NewStoryPayload, authorization=Depends(security)):
-    verified_user_id = get_auth_verified_user_id(authorization.credentials)
-    # Check if user exists
-    user_ref = db.collection(u'users').document(verified_user_id)
-    user = user_ref.get().to_dict()
-    utc_timestamp = datetime.datetime.utcnow().timestamp()
-    if user is None:
-        raise HTTPException(status_code=400, detail="User not found")
-
-    # Check if user subscription valid
-    subscription = user["subscription"]
-    if subscription["end_date_timestamp"] < utc_timestamp and subscription["finished_free_story"]:
-        raise HTTPException(status_code=403, detail="Free tier ran out")
-
-    # Check if last story generated was less than a day ago
-    time_since_last_story = utc_timestamp - user["last_story_generated_timestamp"]
-    if time_since_last_story < 24 * 60 * 60:
-        raise HTTPException(
-            status_code=429, detail="Too many story requests in a day")
-
-    # Generate prompt and store in db
-    story_ref = db.collection(u'users').document(
-        verified_user_id).collection(u'stories').document()
-    story_id = story_ref.id
-    story = Story(
-        prompt=build_prompt(payload.genre, payload.main_character_name),
-        status=StoryStatus.PendingTextGeneration,
-        timestamp=utc_timestamp,
-        read_status='unread',
-        story_id=story_id
-    )
-    if "stories" not in user:
-        user["stories"] = []
-    user["stories"].append(story.dict())
-
-    # Update subscription if applicable
-    if subscription["end_date_timestamp"] < utc_timestamp and not subscription["finished_free_story"]:
-        user["subscription"]["finished_free_story"] = True
-    user["last_story_generated_timestamp"] = datetime.datetime.utcnow().timestamp()
-    user_ref.set(user)
-    return {"message": "Story request created successfully", "story_id": story_id}, 201
 
 
 @app.post("/read-story/")

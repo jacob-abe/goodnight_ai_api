@@ -23,8 +23,7 @@ async def run_story_request_service(firestore_db):
                     if datetime.datetime.utcnow().timestamp() - user["last_story_generated_timestamp"] > 24 * 60 * 60:
                         # Check if user subscription valid
                         subscription = user["subscription"]
-                        if subscription["end_date_timestamp"] < datetime.datetime.utcnow().timestamp() and subscription[
-                            "finished_free_story"]:
+                        if subscription['isActive'] == False or subscription[ "end_date_timestamp"] < datetime.datetime.utcnow().timestamp() and subscription["finished_free_story"]:
                             raise Exception("Free tier ran out")
                         # Request a new story
                         story_id = len(stories)
@@ -42,7 +41,7 @@ async def run_story_request_service(firestore_db):
 
                         # Update subscription if applicable
                         if subscription["end_date_timestamp"] < datetime.datetime.utcnow().timestamp() and not \
-                        subscription["finished_free_story"]:
+                                subscription["finished_free_story"]:
                             user["subscription"]["finished_free_story"] = True
                         user["last_story_generated_timestamp"] = datetime.datetime.utcnow().timestamp()
                         user_ref = firestore_db.collection(u'users').document(user["user_id"])

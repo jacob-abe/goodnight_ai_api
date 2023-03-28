@@ -1,5 +1,4 @@
 from enum import Enum
-from uuid import UUID
 from pydantic import BaseModel
 from pydantic.types import List
 
@@ -34,6 +33,7 @@ class UserSubscriptionObject(BaseModel):
     start_date_timestamp: int = 0
     end_date_timestamp: int = 0
     finished_free_story: bool
+    isActive: bool = False
 
 
 class StoryStatus(str, Enum):
